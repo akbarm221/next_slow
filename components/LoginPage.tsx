@@ -1,28 +1,40 @@
+// Lokasi: components/LoginPage.tsx
+
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+// AWAL PERUBAHAN
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+// AKHIR PERUBAHAN
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
+  // --- UBAH: username menjadi email ---
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  // --- UBAH: Fungsi handleSubmit ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Simple authentication (in real app, use proper authentication)
-    if (username === "admin" && password === "admin123") {
-      localStorage.setItem("isAuthenticated", "true")
-      router.push("/dashboard")
-    } else {
-      setError("Username atau password salah")
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/dashboard");
+    } catch (err: any) {
+      // Menampilkan pesan error yang lebih deskriptif dari Firebase
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
+        setError("Email atau password yang Anda masukkan salah.");
+      } else {
+        setError("Terjadi kesalahan. Silakan coba lagi.");
+      }
+      console.error(err);
     }
 
     setIsLoading(false)
@@ -40,17 +52,18 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Username
+              {/* --- UBAH: htmlFor, id, dan type menjadi "email" --- */}
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email
               </label>
               <input
-                id="username"
-                type="text"
+                id="email"
+                type="email"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                placeholder="Masukkan username"
+                placeholder="Masukkan email"
               />
             </div>
 
@@ -84,11 +97,12 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* --- HAPUS: Demo credentials tidak lagi relevan --- */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Demo credentials: admin / admin123</p>
+            {/* <p className="text-sm text-gray-600 dark:text-gray-400">Demo credentials: admin / admin123</p> */}
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

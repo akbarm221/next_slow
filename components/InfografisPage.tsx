@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import Header from "./Header"
 import Footer from "./Footer"
@@ -13,16 +12,18 @@ interface ChartData {
 }
 
 interface ChartConfig {
-  type: string
+  type: any // Type diubah menjadi 'any' agar lebih fleksibel
   data: ChartData
   options: any
 }
 
 export default function InfografisPage() {
   const [activeTab, setActiveTab] = useState("kependudukan")
-  const [charts, setCharts] = useState<{ [key: string]: Chart | null }>({})
 
-  // Chart refs
+  // Menggunakan useRef untuk menyimpan instance chart agar tidak memicu re-render
+  const chartRefs = useRef<{ [key: string]: Chart | null }>({}).current
+
+  // Chart canvas refs
   const pendidikanChartRef = useRef<HTMLCanvasElement>(null)
   const peternakanChartRef = useRef<HTMLCanvasElement>(null)
   const perkebunanChartRef = useRef<HTMLCanvasElement>(null)
@@ -65,267 +66,177 @@ export default function InfografisPage() {
     if (value >= 1.0e3) return "Rp " + (value / 1.0e3).toFixed(1) + " Rb"
     return "Rp " + value
   }
-
-  const createChart = (canvasRef: React.RefObject<HTMLCanvasElement>, config: ChartConfig, chartKey: string) => {
-    if (!canvasRef.current || charts[chartKey]) return
-
-    const ctx = canvasRef.current.getContext("2d")
-    if (!ctx) return
-
-    const chart = new Chart(ctx, config)
-    setCharts((prev) => ({ ...prev, [chartKey]: chart }))
-  }
-
-  const destroyChart = (chartKey: string) => {
-    if (charts[chartKey]) {
-      charts[chartKey]?.destroy()
-      setCharts((prev) => ({ ...prev, [chartKey]: null }))
-    }
-  }
-
+  
+  // Perubahan Utama ada di dalam useEffect ini
   useEffect(() => {
-    // Create charts based on active tab
-    if (activeTab === "kependudukan") {
-      createChart(
-        pendidikanChartRef,
-        {
-          type: "bar",
-          data: {
-            labels: [
-              "Tidak/Belum Sekolah",
-              "Belum Tamat SD/Sederajat",
-              "Tamat SD/Sederajat",
-              "SLTP/Sederajat",
-              "SLTA/Sederajat",
-              "Diploma I/II",
-              "Diploma III/Sarjana Muda",
-              "Diploma IV/Strata I",
-              "Strata II",
-              "Strata III",
-            ],
-            datasets: [
-              {
-                label: "Jumlah Penduduk",
-                data: [173, 201, 285, 140, 286, 22, 13, 26, 2, 0],
-                backgroundColor: "#ff6b35",
-                borderRadius: 5,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } },
-          },
-        },
-        "pendidikan",
-      )
-    } else if (activeTab === "pertanian") {
-      createChart(
-        peternakanChartRef,
-        {
-          type: "bar",
-          data: {
-            labels: ["2018", "2019", "2020", "2021", "2022"],
-            datasets: [
-              {
-                label: "Sapi",
-                data: [1235, 1236, 1240, 1240, 1240],
-                backgroundColor: "#4caf50",
-              },
-              {
-                label: "Kambing",
-                data: [153, 155, 160, 160, 160],
-                backgroundColor: "#8dd18d",
-              },
-              {
-                label: "Ayam",
-                data: [1720, 1700, 1750, 1750, 1750],
-                backgroundColor: "#bce5bc",
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: "top" } },
-            scales: { y: { beginAtZero: true } },
-          },
-        },
-        "peternakan",
-      )
-
-      createChart(
-        perkebunanChartRef,
-        {
-          type: "bar",
-          data: {
-            labels: ["2018", "2019", "2020", "2021", "2022"],
-            datasets: [
-              {
-                label: "Kelapa",
-                data: [2, 2, 2, 2, 2],
-                backgroundColor: "#4caf50",
-              },
-              {
-                label: "Karet",
-                data: [0, 0, 0, 0, 0],
-                backgroundColor: "#8dd18d",
-              },
-              {
-                label: "Kopi",
-                data: [0, 0, 0, 0, 0],
-                backgroundColor: "#bce5bc",
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: "top" } },
-            scales: { y: { beginAtZero: true } },
-          },
-        },
-        "perkebunan",
-      )
-
-      createChart(
-        tanamanPanganChartRef,
-        {
-          type: "line",
-          data: {
-            labels: ["2018", "2019", "2020", "2021", "2022"],
-            datasets: [
-              {
-                label: "Padi",
-                data: [118, 120, 120, 120, 120],
-                borderColor: "#ff6b35",
-                tension: 0.1,
-              },
-              {
-                label: "Jagung",
-                data: [93, 96, 96, 96, 96],
-                borderColor: "#4caf50",
-                tension: 0.1,
-              },
-              {
-                label: "Kacang Tanah",
-                data: [5, 5, 5, 5, 5],
-                borderColor: "#2e7d32",
-                tension: 0.1,
-              },
-              {
-                label: "Tomat",
-                data: [13, 15, 15, 15, 15],
-                borderColor: "#8dd18d",
-                tension: 0.1,
-              },
-              {
-                label: "Cabe",
-                data: [24, 25, 25, 25, 25],
-                borderColor: "#bce5bc",
-                tension: 0.1,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: "top" } },
-            scales: { y: { beginAtZero: true } },
-          },
-        },
-        "tanamanPangan",
-      )
-    } else if (activeTab === "apbd") {
-      createChart(
-        pendapatanDetailChartRef,
-        {
-          type: "bar",
-          data: {
-            labels: ["Pendapatan Asli Desa", "Pendapatan Transfer", "Pendapatan Lain-lain"],
-            datasets: [
-              {
-                label: "Anggaran (Rp)",
-                data: [325310200, 2089649500, 0],
-                backgroundColor: ["#2e7d32", "#4caf50", "#8dd18d"],
-                borderRadius: 5,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  callback: (value: any) => formatAsShortCurrency(value),
+    const chartMapping: { [key: string]: { ref: React.RefObject<HTMLCanvasElement>; config: ChartConfig } } = {
+        pendidikan: {
+            ref: pendidikanChartRef,
+            config: {
+                type: "bar",
+                data: {
+                    labels: [
+                        "Tidak/Belum Sekolah", "Belum Tamat SD/Sederajat", "Tamat SD/Sederajat", "SLTP/Sederajat",
+                        "SLTA/Sederajat", "Diploma I/II", "Diploma III/Sarjana Muda", "Diploma IV/Strata I",
+                        "Strata II", "Strata III",
+                    ],
+                    datasets: [{
+                        label: "Jumlah Penduduk",
+                        data: [173, 201, 285, 140, 286, 22, 13, 26, 2, 0],
+                        backgroundColor: "#ff6b35",
+                        borderRadius: 5,
+                    }],
                 },
-              },
-            },
-          },
-        },
-        "pendapatanDetail",
-      )
-
-      createChart(
-        belanjaDetailChartRef,
-        {
-          type: "bar",
-          data: {
-            labels: [
-              "Penyelenggaraan Pemerintahan Desa",
-              "Pelaksanaan Pembangunan Desa",
-              "Pembinaan Kemasyarakatan",
-              "Pemberdayaan Masyarakat Desa",
-              "Penanggulangan Bencana, Keadaan Darurat dan Mendesak",
-            ],
-            datasets: [
-              {
-                label: "Anggaran (Rp)",
-                data: [1123785756.34, 1187744000, 73627444, 218317000, 173093000],
-                backgroundColor: ["#ff6b35", "#ff8a5c", "#ffab8a", "#ffcba8", "#ffe8d6"],
-                borderRadius: 5,
-              },
-            ],
-          },
-          options: {
-            indexAxis: "y" as const,
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: {
-                beginAtZero: true,
-                ticks: {
-                  callback: (value: any) => formatAsShortCurrency(value),
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } },
                 },
-              },
-            },
-          },
+            }
         },
-        "belanjaDetail",
-      )
+        peternakan: {
+            ref: peternakanChartRef,
+            config: {
+              type: "bar",
+              data: {
+                labels: ["2018", "2019", "2020", "2021", "2022"],
+                datasets: [
+                  { label: "Sapi", data: [1235, 1236, 1240, 1240, 1240], backgroundColor: "#4caf50" },
+                  { label: "Kambing", data: [153, 155, 160, 160, 160], backgroundColor: "#8dd18d" },
+                  { label: "Ayam", data: [1720, 1700, 1750, 1750, 1750], backgroundColor: "#bce5bc" },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "top" } },
+                scales: { y: { beginAtZero: true } },
+              },
+            }
+        },
+        perkebunan: {
+            ref: perkebunanChartRef,
+            config: {
+              type: "bar",
+              data: {
+                labels: ["2018", "2019", "2020", "2021", "2022"],
+                datasets: [
+                  { label: "Kelapa", data: [2, 2, 2, 2, 2], backgroundColor: "#4caf50" },
+                  { label: "Karet", data: [0, 0, 0, 0, 0], backgroundColor: "#8dd18d" },
+                  { label: "Kopi", data: [0, 0, 0, 0, 0], backgroundColor: "#bce5bc" },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "top" } },
+                scales: { y: { beginAtZero: true } },
+              },
+            }
+        },
+        tanamanPangan: {
+            ref: tanamanPanganChartRef,
+            config: {
+              type: "line",
+              data: {
+                labels: ["2018", "2019", "2020", "2021", "2022"],
+                datasets: [
+                  { label: "Padi", data: [118, 120, 120, 120, 120], borderColor: "#ff6b35", tension: 0.1 },
+                  { label: "Jagung", data: [93, 96, 96, 96, 96], borderColor: "#4caf50", tension: 0.1 },
+                  { label: "Kacang Tanah", data: [5, 5, 5, 5, 5], borderColor: "#2e7d32", tension: 0.1 },
+                  { label: "Tomat", data: [13, 15, 15, 15, 15], borderColor: "#8dd18d", tension: 0.1 },
+                  { label: "Cabe", data: [24, 25, 25, 25, 25], borderColor: "#bce5bc", tension: 0.1 },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "top" } },
+                scales: { y: { beginAtZero: true } },
+              },
+            }
+        },
+        pendapatanDetail: {
+            ref: pendapatanDetailChartRef,
+            config: {
+              type: "bar",
+              data: {
+                labels: ["Pendapatan Asli Desa", "Pendapatan Transfer", "Pendapatan Lain-lain"],
+                datasets: [{
+                  label: "Anggaran (Rp)",
+                  data: [325310200, 2089649500, 0],
+                  backgroundColor: ["#2e7d32", "#4caf50", "#8dd18d"],
+                  borderRadius: 5,
+                }],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: (value: any) => formatAsShortCurrency(value) } } },
+              },
+            }
+        },
+        belanjaDetail: {
+            ref: belanjaDetailChartRef,
+            config: {
+              type: "bar",
+              data: {
+                labels: [
+                  "Penyelenggaraan Pemerintahan Desa", "Pelaksanaan Pembangunan Desa", "Pembinaan Kemasyarakatan",
+                  "Pemberdayaan Masyarakat Desa", "Penanggulangan Bencana, Keadaan Darurat dan Mendesak",
+                ],
+                datasets: [{
+                  label: "Anggaran (Rp)",
+                  data: [1123785756.34, 1187744000, 73627444, 218317000, 173093000],
+                  backgroundColor: ["#ff6b35", "#ff8a5c", "#ffab8a", "#ffcba8", "#ffe8d6"],
+                  borderRadius: 5,
+                }],
+              },
+              options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, ticks: { callback: (value: any) => formatAsShortCurrency(value) } } },
+              },
+            }
+        }
+    };
+
+    const createChart = (key: string, ref: React.RefObject<HTMLCanvasElement>, config: ChartConfig) => {
+        if (ref.current) {
+            const ctx = ref.current.getContext("2d");
+            if (ctx) {
+                chartRefs[key] = new Chart(ctx, config);
+            }
+        }
+    };
+    
+    // Logika untuk membuat chart berdasarkan tab yang aktif
+    if (activeTab === 'kependudukan') {
+        createChart('pendidikan', chartMapping.pendidikan.ref, chartMapping.pendidikan.config);
+    } else if (activeTab === 'pertanian') {
+        createChart('peternakan', chartMapping.peternakan.ref, chartMapping.peternakan.config);
+        createChart('perkebunan', chartMapping.perkebunan.ref, chartMapping.perkebunan.config);
+        createChart('tanamanPangan', chartMapping.tanamanPangan.ref, chartMapping.tanamanPangan.config);
+    } else if (activeTab === 'apbd') {
+        createChart('pendapatanDetail', chartMapping.pendapatanDetail.ref, chartMapping.pendapatanDetail.config);
+        createChart('belanjaDetail', chartMapping.belanjaDetail.ref, chartMapping.belanjaDetail.config);
     }
 
+    // Fungsi cleanup untuk menghancurkan semua chart
     return () => {
-      // Cleanup charts when tab changes
-      Object.keys(charts).forEach((key) => {
-        destroyChart(key)
-      })
-    }
-  }, [activeTab])
+        Object.keys(chartRefs).forEach(key => {
+            if (chartRefs[key]) {
+                chartRefs[key]?.destroy();
+                chartRefs[key] = null;
+            }
+        });
+    };
+}, [activeTab]);
 
-  const handleTabChange = (tab: string) => {
-    // Destroy existing charts
-    Object.keys(charts).forEach((key) => {
-      destroyChart(key)
-    })
-    setActiveTab(tab)
-  }
 
   // Animated numbers
   const totalPenduduk = useAnimatedNumber(8598)
@@ -355,7 +266,7 @@ export default function InfografisPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row justify-center items-center gap-6">
               <button
-                onClick={() => handleTabChange("kependudukan")}
+                onClick={() => setActiveTab("kependudukan")}
                 className={`w-40 h-40 flex flex-col items-center justify-center font-semibold rounded-lg shadow-md transition-all duration-300 ${
                   activeTab === "kependudukan"
                     ? "bg-green-600 text-white"
@@ -366,7 +277,7 @@ export default function InfografisPage() {
                 <span className="text-center">Data Penduduk</span>
               </button>
               <button
-                onClick={() => handleTabChange("pertanian")}
+                onClick={() => setActiveTab("pertanian")}
                 className={`w-40 h-40 flex flex-col items-center justify-center font-semibold rounded-lg shadow-md transition-all duration-300 ${
                   activeTab === "pertanian"
                     ? "bg-green-600 text-white"
@@ -381,7 +292,7 @@ export default function InfografisPage() {
                 </span>
               </button>
               <button
-                onClick={() => handleTabChange("apbd")}
+                onClick={() => setActiveTab("apbd")}
                 className={`w-40 h-40 flex flex-col items-center justify-center font-semibold rounded-lg shadow-md transition-all duration-300 ${
                   activeTab === "apbd"
                     ? "bg-green-600 text-white"
@@ -444,42 +355,77 @@ export default function InfografisPage() {
                 </div>
               </section>
 
-              {/* Religion Statistics */}
-              <section className="mb-16 bg-white dark:bg-gray-900 py-16">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                  <div className="text-center mb-12">
-                    <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">
-                      Statistik Berdasarkan Agama
-                    </h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
-                      <i className="fas fa-mosque text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
-                      <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{islam}</p>
-                      <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Islam</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
-                      <i className="fas fa-church text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
-                      <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{kristen}</p>
-                      <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Kristen</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
-                      <i className="fas fa-bible text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
-                      <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{katolik}</p>
-                      <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Katolik</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
-                      <i className="fas fa-om text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
-                      <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{hindu}</p>
-                      <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Hindu</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
+    
+{/* Religion Statistics */}
+<section className="mb-16 bg-white dark:bg-gray-900 py-16">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="text-center mb-12">
+      <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">
+        Statistik Berdasarkan Agama
+      </h2>
+    </div>
+    {/* AWAL PERUBAHAN: Menambahkan 4 card baru dan menyesuaikan grid */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      {/* Card Islam */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-mosque text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{islam}</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Islam</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Kristen */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-church text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{kristen}</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Kristen</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Katolik */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-bible text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{katolik}</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Katolik</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Hindu */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-om text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">{hindu}</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Hindu</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Buddha (BARU) */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-dharmachakra text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">0</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Buddha</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Konghucu (BARU) */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-yin-yang text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">0</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Konghucu</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Kepercayaan Lainnya (BARU) */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-pray text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">0</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Kepercayaan Lainnya</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+      {/* Card Aliran Kepercayaan (BARU) */}
+      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg text-center flex flex-col items-center">
+        <i className="fas fa-praying-hands text-blue-600 mt-2 mb-6" style={{ fontSize: "40px" }}></i>
+        <p className="text-4xl font-extrabold text-gray-900 dark:text-white">0</p>
+        <p className="mt-2 text-lg font-medium text-gray-600 dark:text-gray-300">Aliran Kepercayaan</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">Jiwa</p>
+      </div>
+    </div>
+    {/* AKHIR PERUBAHAN */}
+  </div>
+</section>
 
               {/* Education Chart */}
               <section>

@@ -1,7 +1,24 @@
+// Lokasi: components/DashboardPage.tsx
+
 "use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { signOut } from "firebase/auth"
+import { doc, getDoc, setDoc } from "firebase/firestore"
+import { auth, db } from "@/lib/firebase"
+import { useAuth } from "./AuthProvider"
+
+interface AgamaData {
+  islam: number;
+  kristen: number;
+  katolik: number;
+  hindu: number;
+  buddha: number;
+  konghucu: number;
+  kepercayaanLainnya: number;
+  aliranKepercayaan: number;
+}
 
 interface ChartData {
   labels: string[]
@@ -13,12 +30,7 @@ interface InfografisData {
     total: number
     lakiLaki: number
     perempuan: number
-    agama: {
-      islam: number
-      kristen: number
-      katolik: number
-      hindu: number
-    }
+    agama: AgamaData;
   }
   pendidikan: ChartData
   pertanian: {
@@ -35,124 +47,118 @@ interface InfografisData {
 }
 
 export default function DashboardPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState("penduduk")
-  const [data, setData] = useState<InfografisData>({
-    penduduk: {
-      total: 8598,
-      lakiLaki: 4317,
-      perempuan: 4281,
-      agama: {
-        islam: 1148,
-        kristen: 22,
-        katolik: 268,
-        hindu: 23,
-      },
-    },
-    pendidikan: {
-      labels: [
-        "Tidak/Belum Sekolah",
-        "Belum Tamat SD",
-        "Tamat SD",
-        "SLTP",
-        "SLTA",
-        "Diploma I/II",
-        "Diploma III",
-        "Diploma IV/S1",
-        "S2",
-        "S3",
-      ],
-      values: [173, 201, 285, 140, 286, 22, 13, 26, 2, 0],
-    },
-    pertanian: {
-      peternakan: {
-        labels: ["Sapi", "Kambing", "Ayam"],
-        values: [1240, 160, 1750],
-      },
-      perkebunan: {
-        labels: ["Kelapa", "Karet", "Kopi"],
-        values: [2, 0, 0],
-      },
-      tanamanPangan: {
-        labels: ["Padi", "Jagung", "Kacang Tanah", "Tomat", "Cabe"],
-        values: [120, 96, 5, 15, 25],
-      },
-    },
-    apbd: {
-      pendapatan: 2414959700,
-      belanja: 2776567200,
-      pendapatanDetail: {
-        labels: ["Pendapatan Asli Desa", "Pendapatan Transfer", "Pendapatan Lain-lain"],
-        values: [325310200, 2089649500, 0],
-      },
-      belanjaDetail: {
-        labels: [
-          "Penyelenggaraan Pemerintahan Desa",
-          "Pelaksanaan Pembangunan Desa",
-          "Pembinaan Kemasyarakatan",
-          "Pemberdayaan Masyarakat Desa",
-          "Penanggulangan Bencana",
-        ],
-        values: [1123785756, 1187744000, 73627444, 218317000, 173093000],
-      },
-    },
-  })
-  const router = useRouter()
+  const [data, setData] = useState<InfografisData | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const auth = localStorage.getItem("isAuthenticated")
-    if (auth === "true") {
-      setIsAuthenticated(true)
-    } else {
-      router.push("/login")
+    const fetchData = async () => {
+      if (user) {
+        const docRef = doc(db, "infografis", "data_penduduk");
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData(docSnap.data() as InfografisData);
+        } else {
+          console.log("No such document!");
+        }
+      }
+    };
+
+    if (!loading && user) {
+      fetchData();
     }
-  }, [router])
+  }, [user, loading]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated")
-    router.push("/login")
-  }
+  // AWAL PERUBAHAN: useEffect untuk kalkulasi total penduduk otomatis
+  useEffect(() => {
+    if (data) {
+      const newTotal = (data.penduduk.lakiLaki || 0) + (data.penduduk.perempuan || 0);
+      // Cek agar tidak terjadi infinite loop update
+      if (newTotal !== data.penduduk.total) {
+        setData(prevData => {
+          if (!prevData) return null;
+          // Buat salinan deep copy untuk menghindari mutasi state langsung
+          const newData = JSON.parse(JSON.stringify(prevData));
+          newData.penduduk.total = newTotal;
+          return newData;
+        });
+      }
+    }
+  }, [data?.penduduk.lakiLaki, data?.penduduk.perempuan]);
+  // AKHIR PERUBAHAN
 
-  const handleSave = () => {
-    // In a real app, this would save to a database
-    alert("Data berhasil disimpan!")
-  }
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Gagal logout:", error);
+      alert("Gagal untuk logout.");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!data) return;
+    setIsSaving(true);
+    try {
+      const docRef = doc(db, "infografis", "data_penduduk");
+      await setDoc(docRef, data, { merge: true });
+      alert("Data berhasil disimpan di Firebase!");
+    } catch (error) {
+      console.error("Error menyimpan data:", error);
+      alert("Gagal menyimpan data.");
+    }
+    setIsSaving(false);
+  };
 
   const updateValue = (path: string, value: number | string) => {
     setData((prevData) => {
-      const newData = { ...prevData }
-      const keys = path.split(".")
-      let current: any = newData
-
+      if (!prevData) return null;
+      const keys = path.split('.');
+      const newData = JSON.parse(JSON.stringify(prevData));
+      let current: any = newData;
+      
       for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]]
+        current = current[keys[i]];
       }
-
-      current[keys[keys.length - 1]] = typeof value === "string" ? Number.parseInt(value) || 0 : value
-      return newData
-    })
+      
+      current[keys[keys.length - 1]] = typeof value === 'string' ? Number.parseInt(value) || 0 : value;
+      return newData;
+    });
   }
 
   const updateArrayValue = (path: string, index: number, value: string) => {
-    setData((prevData) => {
-      const newData = { ...prevData }
-      const keys = path.split(".")
-      let current: any = newData
-
-      for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]]
-      }
-
-      current[keys[keys.length - 1]][index] = Number.parseInt(value) || 0
-      return newData
-    })
+      setData((prevData) => {
+          if (!prevData) return null;
+          const newData = { ...prevData };
+          const keys = path.split('.');
+          let current: any = newData;
+          for (let i = 0; i < keys.length - 1; i++) {
+              current = current[keys[i]];
+          }
+          current[keys[keys.length - 1]][index] = Number.parseInt(value) || 0;
+          return newData;
+      });
   }
 
-  if (!isAuthenticated) {
-    return <div>Loading...</div>
+  if (loading || !user || !data) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="w-12 h-12 border-4 border-gray-200 border-t-green-500 rounded-full animate-spin"></div>
+        </div>
+    );
   }
-
   return (
+    // ... Sisa dari JSX komponen Anda (Header, main content, dll) tidak perlu diubah ...
+    // Pastikan fungsi onClick pada tombol logout memanggil handleLogout yang baru.
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
