@@ -5,36 +5,36 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-// AWAL PERUBAHAN
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { auth } from "@/lib/firebase"
-// AKHIR PERUBAHAN
 
 export default function LoginPage() {
-  // --- UBAH: username menjadi email ---
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  // --- UBAH: Fungsi handleSubmit ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
+    console.log("Mencoba login dengan email:", email);
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Login BERHASIL!", userCredential.user);
       router.push("/dashboard");
     } catch (err: any) {
-      // Menampilkan pesan error yang lebih deskriptif dari Firebase
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
+      console.error("Login GAGAL! Kode Error:", err.code);
+      console.error("Pesan Error Lengkap:", err);
+      
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email' || err.code === 'auth/wrong-password') {
         setError("Email atau password yang Anda masukkan salah.");
       } else {
         setError("Terjadi kesalahan. Silakan coba lagi.");
       }
-      console.error(err);
     }
 
     setIsLoading(false)
@@ -52,7 +52,6 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              {/* --- UBAH: htmlFor, id, dan type menjadi "email" --- */}
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Email
               </label>
@@ -96,11 +95,6 @@ export default function LoginPage() {
               {isLoading ? "Memproses..." : "Masuk"}
             </button>
           </form>
-
-          {/* --- HAPUS: Demo credentials tidak lagi relevan --- */}
-          <div className="mt-6 text-center">
-            {/* <p className="text-sm text-gray-600 dark:text-gray-400">Demo credentials: admin / admin123</p> */}
-          </div>
         </div>
       </div>
     </div>

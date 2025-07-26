@@ -9,108 +9,154 @@ import { doc, getDoc, setDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 import { useAuth } from "./AuthProvider"
 
-interface AgamaData {
-  islam: number;
-  kristen: number;
-  katolik: number;
-  hindu: number;
-  buddha: number;
-  konghucu: number;
-  kepercayaanLainnya: number;
-  aliranKepercayaan: number;
+// Definisi Interface untuk struktur data modular
+interface PopulationSummaryData {
+  total: number
+  lakiLaki: number
+  perempuan: number
 }
 
-interface ChartData {
+interface ReligionCountsData {
+  islam: number
+  kristen: number
+  katolik: number
+  hindu: number
+  buddha: number
+  konghucu: number
+  kepercayaanLainnya: number
+  aliranKepercayaan: number
+}
+
+interface EducationStatsData {
   labels: string[]
   values: number[]
 }
 
-interface InfografisData {
-  penduduk: {
-    total: number
-    lakiLaki: number
-    perempuan: number
-    agama: AgamaData;
+interface AgricultureData {
+  peternakan: {
+    labels: string[]
+    values: number[]
   }
-  pendidikan: ChartData
-  pertanian: {
-    peternakan: ChartData
-    perkebunan: ChartData
-    tanamanPangan: ChartData
+  perkebunan: {
+    labels: string[]
+    values: number[]
   }
-  apbd: {
-    pendapatan: number
-    belanja: number
-    pendapatanDetail: ChartData
-    belanjaDetail: ChartData
+  tanamanPangan: {
+    labels: string[]
+    values: number[]
   }
 }
 
-export default function DashboardPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [activeSection, setActiveSection] = useState("penduduk")
-  const [data, setData] = useState<InfografisData | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+interface ApbdData {
+  pendapatan: number
+  belanja: number
+  pendapatanDetail: {
+    labels: string[]
+    values: number[]
+  }
+  belanjaDetail: {
+    labels: string[]
+    values: number[]
+  }
+}
 
+// Interface gabungan untuk state lokal
+interface DashboardCombinedData {
+  populationSummary: PopulationSummaryData
+  religionCounts: ReligionCountsData
+  educationStats: EducationStatsData
+  agricultureData: AgricultureData
+  apbdData: ApbdData
+}
+
+export default function DashboardPage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const [activeSection, setActiveSection] = useState("penduduk")
+  const [data, setData] = useState<DashboardCombinedData | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
+
+  // Mengambil data dari beberapa dokumen Firestore
   useEffect(() => {
     const fetchData = async () => {
       if (user) {
-        const docRef = doc(db, "infografis", "data_penduduk");
-        const docSnap = await getDoc(docRef);
+        try {
+          const [
+            populationSnap,
+            religionSnap,
+            educationSnap,
+            agricultureSnap,
+            apbdSnap,
+          ] = await Promise.all([
+            getDoc(doc(db, "infografis", "population_summary")),
+            getDoc(doc(db, "infografis", "religion_counts")),
+            getDoc(doc(db, "infografis", "education_stats")),
+            getDoc(doc(db, "infografis", "agriculture_data")),
+            getDoc(doc(db, "infografis", "apbd_data")),
+          ])
 
-        if (docSnap.exists()) {
-          setData(docSnap.data() as InfografisData);
-        } else {
-          console.log("No such document!");
+          // Mengatur data state dengan data dari Firestore atau data default jika tidak ada
+          setData({
+            populationSummary: (populationSnap.exists()
+              ? (populationSnap.data() as PopulationSummaryData)
+              : { total: 0, lakiLaki: 0, perempuan: 0 }),
+            religionCounts: (religionSnap.exists()
+              ? (religionSnap.data() as ReligionCountsData)
+              : { islam: 0, kristen: 0, katolik: 0, hindu: 0, buddha: 0, konghucu: 0, kepercayaanLainnya: 0, aliranKepercayaan: 0 }),
+            educationStats: (educationSnap.exists()
+              ? (educationSnap.data() as EducationStatsData)
+              : { labels: [], values: [] }),
+            agricultureData: (agricultureSnap.exists()
+              ? (agricultureSnap.data() as AgricultureData)
+              : { peternakan: { labels: [], values: [] }, perkebunan: { labels: [], values: [] }, tanamanPangan: { labels: [], values: [] } }),
+            apbdData: (apbdSnap.exists() ? (apbdSnap.data() as ApbdData) : { pendapatan: 0, belanja: 0, pendapatanDetail: { labels: [], values: [] }, belanjaDetail: { labels: [], values: [] } }),
+          })
+          setIsDataLoaded(true);
+        } catch (error) {
+          console.error("Gagal mengambil data dari Firestore:", error)
+          setIsDataLoaded(true); // Hentikan loading meskipun error
         }
       }
-    };
+    }
 
     if (!loading && user) {
-      fetchData();
+      fetchData()
     }
-  }, [user, loading]);
-
-  // AWAL PERUBAHAN: useEffect untuk kalkulasi total penduduk otomatis
-  useEffect(() => {
-    if (data) {
-      const newTotal = (data.penduduk.lakiLaki || 0) + (data.penduduk.perempuan || 0);
-      // Cek agar tidak terjadi infinite loop update
-      if (newTotal !== data.penduduk.total) {
-        setData(prevData => {
-          if (!prevData) return null;
-          // Buat salinan deep copy untuk menghindari mutasi state langsung
-          const newData = JSON.parse(JSON.stringify(prevData));
-          newData.penduduk.total = newTotal;
-          return newData;
-        });
-      }
-    }
-  }, [data?.penduduk.lakiLaki, data?.penduduk.perempuan]);
-  // AKHIR PERUBAHAN
-
-  useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push("/login")
     }
-  }, [user, loading, router]);
+  }, [user, loading, router])
+
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await signOut(auth)
     } catch (error) {
-      console.error("Gagal logout:", error);
-      alert("Gagal untuk logout.");
+      console.error("Gagal logout:", error)
+      alert("Gagal untuk logout.")
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!data) return;
     setIsSaving(true);
+    
+    // Pastikan total penduduk ter-update sebelum menyimpan
+    const dataToSave = JSON.parse(JSON.stringify(data));
+    if (dataToSave.populationSummary) {
+      dataToSave.populationSummary.total = 
+        (dataToSave.populationSummary.lakiLaki || 0) + (dataToSave.populationSummary.perempuan || 0);
+    }
+    
     try {
-      const docRef = doc(db, "infografis", "data_penduduk");
-      await setDoc(docRef, data, { merge: true });
+      // Menyimpan setiap bagian data ke dokumennya masing-masing
+      if (dataToSave.populationSummary) await setDoc(doc(db, "infografis", "population_summary"), dataToSave.populationSummary);
+      if (dataToSave.religionCounts) await setDoc(doc(db, "infografis", "religion_counts"), dataToSave.religionCounts);
+      if (dataToSave.educationStats) await setDoc(doc(db, "infografis", "education_stats"), dataToSave.educationStats);
+      if (dataToSave.agricultureData) await setDoc(doc(db, "infografis", "agriculture_data"), dataToSave.agricultureData);
+      if (dataToSave.apbdData) await setDoc(doc(db, "infografis", "apbd_data"), dataToSave.apbdData);
+  
       alert("Data berhasil disimpan di Firebase!");
     } catch (error) {
       console.error("Error menyimpan data:", error);
@@ -118,63 +164,93 @@ export default function DashboardPage() {
     }
     setIsSaving(false);
   };
-
-  const updateValue = (path: string, value: number | string) => {
+  
+  const updateNestedValue = (
+    docKey: keyof DashboardCombinedData,
+    fieldPath: string,
+    value: string | number
+  ) => {
     setData((prevData) => {
       if (!prevData) return null;
-      const keys = path.split('.');
+  
       const newData = JSON.parse(JSON.stringify(prevData));
-      let current: any = newData;
-      
+      let currentLevel = newData[docKey];
+  
+      if (!currentLevel) return prevData;
+  
+      const keys = fieldPath.split(".");
       for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]];
+        currentLevel = currentLevel[keys[i]];
       }
+  
+      currentLevel[keys[keys.length - 1]] =
+        typeof value === "string" ? Number(value) || 0 : value;
       
-      current[keys[keys.length - 1]] = typeof value === 'string' ? Number.parseInt(value) || 0 : value;
+      // Kalkulasi total penduduk otomatis
+      if (docKey === 'populationSummary' && (fieldPath === 'lakiLaki' || fieldPath === 'perempuan')) {
+        const summary = newData.populationSummary;
+        summary.total = (summary.lakiLaki || 0) + (summary.perempuan || 0);
+      }
+
       return newData;
     });
-  }
+  };
 
-  const updateArrayValue = (path: string, index: number, value: string) => {
-      setData((prevData) => {
-          if (!prevData) return null;
-          const newData = { ...prevData };
-          const keys = path.split('.');
-          let current: any = newData;
-          for (let i = 0; i < keys.length - 1; i++) {
-              current = current[keys[i]];
-          }
-          current[keys[keys.length - 1]][index] = Number.parseInt(value) || 0;
-          return newData;
-      });
-  }
+  const updateArrayValue = (
+    docKey: keyof DashboardCombinedData,
+    arrayPath: string,
+    index: number,
+    value: string
+  ) => {
+    setData(prevData => {
+        if (!prevData) return null;
+        const newData = JSON.parse(JSON.stringify(prevData));
+        let currentDoc = newData[docKey];
+        if (!currentDoc) return prevData;
+        
+        const keys = arrayPath.split('.');
+        let currentLevel: any = currentDoc;
+        for (let i = 0; i < keys.length - 1; i++) {
+            currentLevel = currentLevel[keys[i]];
+        }
+        
+        currentLevel[keys[keys.length - 1]][index] = Number(value) || 0;
+        
+        return newData;
+    });
+  };
 
-  if (loading || !user || !data) {
+  if (loading || !user || !isDataLoaded) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-            <div className="w-12 h-12 border-4 border-gray-200 border-t-green-500 rounded-full animate-spin"></div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="w-12 h-12 border-4 border-gray-200 border-t-green-500 rounded-full animate-spin"></div>
+      </div>
     );
   }
+
   return (
-    // ... Sisa dari JSX komponen Anda (Header, main content, dll) tidak perlu diubah ...
-    // Pastikan fungsi onClick pada tombol logout memanggil handleLogout yang baru.
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <img src="/assets/img/logo.png" alt="Logo" className="w-8 h-8 rounded-full" />
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Dashboard Admin - Desa Slorok</h1>
+              <img
+                src="/assets/img/logo.png"
+                alt="Logo"
+                className="w-8 h-8 rounded-full"
+              />
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Dashboard Admin - Desa Slorok
+              </h1>
             </div>
             <div className="flex items-center space-x-4">
               <button
                 onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200"
+                disabled={isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 disabled:bg-green-400"
               >
                 <i className="fas fa-save mr-2"></i>
-                Simpan Data
+                {isSaving ? "Menyimpan..." : "Simpan Data"}
               </button>
               <button
                 onClick={handleLogout}
@@ -189,9 +265,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation Tabs */}
-        <div className="mb-8">
-          <nav className="flex space-x-8">
+        <nav className="flex space-x-8 mb-8">
             {[
               { id: "penduduk", label: "Data Penduduk", icon: "fas fa-users" },
               { id: "pendidikan", label: "Data Pendidikan", icon: "fas fa-graduation-cap" },
@@ -211,44 +285,40 @@ export default function DashboardPage() {
                 <span>{tab.label}</span>
               </button>
             ))}
-          </nav>
-        </div>
+        </nav>
 
-        {/* Content Sections */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-          {/* Data Penduduk */}
-          {activeSection === "penduduk" && (
+          {/* AWAL PERUBAHAN: Menambahkan pengecekan null untuk data */}
+          {activeSection === "penduduk" && data?.populationSummary && data.religionCounts && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Data Penduduk</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Total Penduduk
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Total Penduduk (Otomatis)</label>
                   <input
                     type="number"
-                    value={data.penduduk.total}
-                    onChange={(e) => updateValue("penduduk.total", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    readOnly
+                    value={data.populationSummary.total}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Laki-laki</label>
                   <input
                     type="number"
-                    value={data.penduduk.lakiLaki}
-                    onChange={(e) => updateValue("penduduk.lakiLaki", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={data.populationSummary.lakiLaki}
+                    onChange={(e) => updateNestedValue("populationSummary", "lakiLaki", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Perempuan</label>
                   <input
                     type="number"
-                    value={data.penduduk.perempuan}
-                    onChange={(e) => updateValue("penduduk.perempuan", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={data.populationSummary.perempuan}
+                    onChange={(e) => updateNestedValue("populationSummary", "perempuan", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                   />
                 </div>
               </div>
@@ -256,54 +326,27 @@ export default function DashboardPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Data Agama</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Islam</label>
-                    <input
-                      type="number"
-                      value={data.penduduk.agama.islam}
-                      onChange={(e) => updateValue("penduduk.agama.islam", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kristen</label>
-                    <input
-                      type="number"
-                      value={data.penduduk.agama.kristen}
-                      onChange={(e) => updateValue("penduduk.agama.kristen", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Katolik</label>
-                    <input
-                      type="number"
-                      value={data.penduduk.agama.katolik}
-                      onChange={(e) => updateValue("penduduk.agama.katolik", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hindu</label>
-                    <input
-                      type="number"
-                      value={data.penduduk.agama.hindu}
-                      onChange={(e) => updateValue("penduduk.agama.hindu", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
+                  {(Object.keys(data.religionCounts) as Array<keyof ReligionCountsData>).map((key) => (
+                    <div key={key}>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                      <input
+                        type="number"
+                        value={data.religionCounts[key]}
+                        onChange={(e) => updateNestedValue("religionCounts", key, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           )}
-
-          {/* Data Pendidikan */}
-          {activeSection === "pendidikan" && (
+          
+          {activeSection === "pendidikan" && data?.educationStats && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Data Pendidikan</h2>
-
               <div className="space-y-4">
-                {data.pendidikan.labels.map((label, index) => (
+                {data.educationStats.labels.map((label, index) => (
                   <div key={index} className="flex items-center space-x-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
@@ -311,9 +354,9 @@ export default function DashboardPage() {
                     <div className="w-32">
                       <input
                         type="number"
-                        value={data.pendidikan.values[index]}
-                        onChange={(e) => updateArrayValue("pendidikan.values", index, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={data.educationStats.values[index]}
+                        onChange={(e) => updateArrayValue("educationStats", "values", index, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                       />
                     </div>
                   </div>
@@ -322,48 +365,40 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Data Pertanian */}
-          {activeSection === "pertanian" && (
+          {activeSection === "pertanian" && data?.agricultureData && (
             <div className="space-y-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Data Pertanian</h2>
-
-              {/* Peternakan */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Data Peternakan</h3>
                 <div className="space-y-4">
-                  {data.pertanian.peternakan.labels.map((label, index) => (
+                  {data.agricultureData.peternakan.labels.map((label, index) => (
                     <div key={index} className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-                      </div>
+                      <div className="flex-1"><label className="block text-sm font-medium">{label}</label></div>
                       <div className="w-32">
                         <input
                           type="number"
-                          value={data.pertanian.peternakan.values[index]}
-                          onChange={(e) => updateArrayValue("pertanian.peternakan.values", index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={data.agricultureData.peternakan.values[index]}
+                          onChange={(e) => updateArrayValue("agricultureData", "peternakan.values", index, e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                         />
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Perkebunan */}
+              
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Data Perkebunan (Ton)</h3>
                 <div className="space-y-4">
-                  {data.pertanian.perkebunan.labels.map((label, index) => (
+                  {data.agricultureData.perkebunan.labels.map((label, index) => (
                     <div key={index} className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-                      </div>
+                      <div className="flex-1"><label className="block text-sm font-medium">{label}</label></div>
                       <div className="w-32">
                         <input
                           type="number"
-                          value={data.pertanian.perkebunan.values[index]}
-                          onChange={(e) => updateArrayValue("pertanian.perkebunan.values", index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={data.agricultureData.perkebunan.values[index]}
+                          onChange={(e) => updateArrayValue("agricultureData", "perkebunan.values", index, e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                         />
                       </div>
                     </div>
@@ -371,106 +406,83 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Tanaman Pangan */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Data Tanaman Pangan</h3>
                 <div className="space-y-4">
-                  {data.pertanian.tanamanPangan.labels.map((label, index) => (
+                  {data.agricultureData.tanamanPangan.labels.map((label, index) => (
                     <div key={index} className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-                      </div>
+                      <div className="flex-1"><label className="block text-sm font-medium">{label}</label></div>
                       <div className="w-32">
                         <input
                           type="number"
-                          value={data.pertanian.tanamanPangan.values[index]}
-                          onChange={(e) => updateArrayValue("pertanian.tanamanPangan.values", index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={data.agricultureData.tanamanPangan.values[index]}
+                          onChange={(e) => updateArrayValue("agricultureData", "tanamanPangan.values", index, e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
                         />
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+
             </div>
           )}
 
-          {/* Data APBD */}
-          {activeSection === "apbd" && (
-            <div className="space-y-8">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Data APBD</h2>
-
-              {/* Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {activeSection === "apbd" && data?.apbdData && (
+             <div className="space-y-8">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Data APBD</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Total Pendapatan (Rp)</label>
+                      <input type="number" value={data.apbdData.pendapatan} onChange={(e) => updateNestedValue("apbdData", "pendapatan", e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg" />
+                   </div>
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Total Belanja (Rp)</label>
+                      <input type="number" value={data.apbdData.belanja} onChange={(e) => updateNestedValue("apbdData", "belanja", e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg" />
+                   </div>
+                </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Total Pendapatan (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={data.apbd.pendapatan}
-                    onChange={(e) => updateValue("apbd.pendapatan", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Detail Pendapatan</h3>
+                  <div className="space-y-4">
+                    {data.apbdData.pendapatanDetail.labels.map((label, index) => (
+                      <div key={index} className="flex items-center space-x-4">
+                        <div className="flex-1"><label className="block text-sm font-medium">{label}</label></div>
+                        <div className="w-48">
+                          <input
+                            type="number"
+                            value={data.apbdData.pendapatanDetail.values[index]}
+                            onChange={(e) => updateArrayValue("apbdData", "pendapatanDetail.values", index, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Total Belanja (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={data.apbd.belanja}
-                    onChange={(e) => updateValue("apbd.belanja", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Detail Belanja</h3>
+                  <div className="space-y-4">
+                    {data.apbdData.belanjaDetail.labels.map((label, index) => (
+                      <div key={index} className="flex items-center space-x-4">
+                        <div className="flex-1"><label className="block text-sm font-medium">{label}</label></div>
+                        <div className="w-48">
+                          <input
+                            type="number"
+                            value={data.apbdData.belanjaDetail.values[index]}
+                            onChange={(e) => updateArrayValue("apbdData", "belanjaDetail.values", index, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Detail Pendapatan */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Detail Pendapatan</h3>
-                <div className="space-y-4">
-                  {data.apbd.pendapatanDetail.labels.map((label, index) => (
-                    <div key={index} className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-                      </div>
-                      <div className="w-48">
-                        <input
-                          type="number"
-                          value={data.apbd.pendapatanDetail.values[index]}
-                          onChange={(e) => updateArrayValue("apbd.pendapatanDetail.values", index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Detail Belanja */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Detail Belanja</h3>
-                <div className="space-y-4">
-                  {data.apbd.belanjaDetail.labels.map((label, index) => (
-                    <div key={index} className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-                      </div>
-                      <div className="w-48">
-                        <input
-                          type="number"
-                          value={data.apbd.belanjaDetail.values[index]}
-                          onChange={(e) => updateArrayValue("apbd.belanjaDetail.values", index, e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+             </div>
           )}
+          {/* AKHIR PERUBAHAN */}
         </div>
       </div>
     </div>

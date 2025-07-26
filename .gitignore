@@ -25,3 +25,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+seeder_pekerjaan.js
+seeder.js
+# local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local   
